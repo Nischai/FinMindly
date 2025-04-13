@@ -1,12 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_sms_inbox/flutter_sms_inbox.dart';
 import 'package:provider/provider.dart';
+import 'package:telephony/telephony.dart' as tp;
 import '../models/transaction.dart';
 import '../providers/transaction_provider.dart';
 import '../providers/account_provider.dart';
 
 class SMSService {
   final SmsQuery _query = SmsQuery();
+  final tp.Telephony _telephony = tp.Telephony.instance;
 
   // Bank sender IDs - Add more as needed
   final List<String> _bankSenders = [
@@ -46,6 +48,146 @@ class SMSService {
     'BOBACC': 'Bank of Baroda',
   };
 
+  // Start listening for new SMS messages
+  Future<void> startListening(BuildContext context) async {
+    // Request SMS permissions first
+    final bool? permissionsGranted =
+        await _telephony.requestPhoneAndSmsPermissions;
+
+    if (permissionsGranted != true) {
+      debugPrint('SMS permissions not granted');
+      return;
+    }
+
+    // Listen for incoming SMS messages
+    _telephony.listenIncomingSms(
+      onNewMessage: (tp.SmsMessage message) {
+        // Check if this is a financial message
+        if (_isFinancialMessage(message.address ?? '')) {
+          debugPrint('Received new financial SMS: ${message.address}');
+
+          // Process this single message
+          final transaction = _parseSingleSmsMessage(message.address ?? '',
+              message.body ?? '', DateTime.now(), message.id.toString());
+
+          if (transaction != null) {
+            _processNewTransaction(context, transaction);
+          }
+        }
+      },
+      listenInBackground: false, // Don't listen when app is closed
+    );
+
+    debugPrint('Started listening for new SMS messages');
+  }
+
+  // Check if sender is a financial institution
+  bool _isFinancialMessage(String sender) {
+    return _bankSenders.any((bank) => sender.contains(bank));
+  }
+
+  // Stop listening for new messages
+  void stopListening() {
+    // No explicit stop method in telephony package
+    debugPrint('Stopped listening for SMS messages');
+  }
+
+  // Process and add a new transaction to providers
+  Future<void> _processNewTransaction(
+      BuildContext context, Transaction transaction) async {
+    try {
+      // Add the transaction to the provider
+      final transactionProvider =
+          Provider.of<TransactionProvider>(context, listen: false);
+      await transactionProvider.addTransaction(transaction);
+
+      // Update accounts based on the new transaction
+      final accountProvider =
+          Provider.of<AccountProvider>(context, listen: false);
+      await accountProvider.extractAccountsFromTransactions([transaction]);
+
+      // Show notification to user (could be implemented with a callback)
+      debugPrint(
+          'New transaction added: ${transaction.amount} - ${transaction.description}');
+    } catch (e) {
+      debugPrint('Error processing new transaction: $e');
+    }
+  }
+
+  // Parse a single SMS message from the telephony package
+  Transaction? _parseSingleSmsMessage(
+    String sender,
+    String body,
+    DateTime date,
+    String id,
+  ) {
+    if (body.isEmpty) return null;
+
+    final String upperBody = body.toUpperCase();
+
+    // Extract bank name from sender
+    String? bankName;
+    for (final bankCode in _bankSenders) {
+      if (sender.contains(bankCode)) {
+        bankName = _bankNameMap[bankCode] ?? bankCode;
+        break;
+      }
+    }
+
+    // Extract card number if present
+    String? cardNumber;
+    final RegExp cardRegex = RegExp(r'[Xx*]+(\d{4})');
+    final cardMatch = cardRegex.firstMatch(upperBody);
+    if (cardMatch != null && cardMatch.groupCount >= 1) {
+      cardNumber = cardMatch.group(1);
+    }
+
+    // Process transaction type and amount
+    if (_containsAnyWord(
+        upperBody, ['DEBITED', 'DEBIT', 'SPENT', 'WITHDREW', 'PAID', 'SENT'])) {
+      final double? amount = _extractAmount(upperBody);
+      if (amount != null) {
+        return Transaction(
+          id: id,
+          date: date,
+          amount: amount,
+          type: TransactionType.expense,
+          description: _extractDescription(upperBody, bankName, cardNumber),
+          category: _categorizeExpense(upperBody),
+          tags: _extractTags(upperBody, bankName, cardNumber),
+        );
+      }
+    } else if (_containsAnyWord(
+        upperBody, ['CREDITED', 'CREDIT', 'RECEIVED', 'DEPOSITED', 'REFUND'])) {
+      final double? amount = _extractAmount(upperBody);
+      if (amount != null) {
+        return Transaction(
+          id: id,
+          date: date,
+          amount: amount,
+          type: TransactionType.income,
+          description: _extractDescription(upperBody, bankName, cardNumber),
+          category: _categorizeIncome(upperBody),
+          tags: _extractTags(upperBody, bankName, cardNumber),
+        );
+      }
+    }
+
+    return null;
+  }
+
+  // Parse a single SMS message from the flutter_sms_inbox package
+  Transaction? _parseSingleMessage(SmsMessage message) {
+    if (message.body == null || message.sender == null) return null;
+
+    return _parseSingleSmsMessage(
+      message.sender!,
+      message.body!,
+      message.date ?? DateTime.now(),
+      message.id.toString(),
+    );
+  }
+
   Future<void> loadMessages(BuildContext context) async {
     try {
       final messages = await _query.querySms(
@@ -78,64 +220,9 @@ class SMSService {
     final List<Transaction> transactions = [];
 
     for (final message in messages) {
-      if (message.body == null) continue;
-
-      final String body = message.body!.toUpperCase();
-      final DateTime date = message.date ?? DateTime.now();
-      final String? sender = message.sender;
-
-      // Extract bank name from sender
-      String? bankName;
-      if (sender != null) {
-        for (final bankCode in _bankSenders) {
-          if (sender.contains(bankCode)) {
-            bankName = _bankNameMap[bankCode] ?? bankCode;
-            break;
-          }
-        }
-      }
-
-      // Extract card number if present
-      String? cardNumber;
-      final RegExp cardRegex = RegExp(r'[Xx*]+(\d{4})');
-      final cardMatch = cardRegex.firstMatch(body);
-      if (cardMatch != null && cardMatch.groupCount >= 1) {
-        cardNumber = cardMatch.group(1);
-      }
-
-      // Pattern 1: Debited/Credited to account
-      if (_containsAnyWord(
-          body, ['DEBITED', 'DEBIT', 'SPENT', 'WITHDREW', 'PAID'])) {
-        final double? amount = _extractAmount(body);
-        if (amount != null) {
-          transactions.add(
-            Transaction(
-              id: message.id.toString(),
-              date: date,
-              amount: amount,
-              type: TransactionType.expense,
-              description: _extractDescription(body, bankName, cardNumber),
-              category: _categorizeExpense(body),
-              tags: _extractTags(body, bankName, cardNumber),
-            ),
-          );
-        }
-      } else if (_containsAnyWord(
-          body, ['CREDITED', 'CREDIT', 'RECEIVED', 'DEPOSITED', 'REFUND'])) {
-        final double? amount = _extractAmount(body);
-        if (amount != null) {
-          transactions.add(
-            Transaction(
-              id: message.id.toString(),
-              date: date,
-              amount: amount,
-              type: TransactionType.income,
-              description: _extractDescription(body, bankName, cardNumber),
-              category: _categorizeIncome(body),
-              tags: _extractTags(body, bankName, cardNumber),
-            ),
-          );
-        }
+      final transaction = _parseSingleMessage(message);
+      if (transaction != null) {
+        transactions.add(transaction);
       }
     }
 
@@ -143,7 +230,7 @@ class SMSService {
   }
 
   bool _containsAnyWord(String text, List<String> words) {
-    return words.any((word) => text.contains(word));
+    return words.any((word) => text.toLowerCase().contains(word.toLowerCase()));
   }
 
   double? _extractAmount(String text) {

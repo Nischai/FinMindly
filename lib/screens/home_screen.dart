@@ -12,6 +12,7 @@ import 'stats_screen.dart';
 import 'transactions/transactions_screen.dart';
 import 'settings_screen.dart';
 import 'transaction_detail_screen.dart';
+import 'account_detail_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -20,11 +21,12 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> {
+class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   bool _isLoading = true;
   int _currentIndex = 0;
-
+  final SMSService _smsService = SMSService();
   late List<Widget> _screens;
+  String? _lastTransactionId;
 
   @override
   void initState() {
@@ -35,7 +37,89 @@ class _HomeScreenState extends State<HomeScreen> {
       const TransactionsScreen(),
       const SettingsScreen(),
     ];
+
+    WidgetsBinding.instance.addObserver(this);
     _loadData();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _smsService.stopListening();
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // When app comes back to foreground, restart the SMS listener
+    if (state == AppLifecycleState.resumed) {
+      _startSmsListener();
+    } else if (state == AppLifecycleState.paused) {
+      _smsService.stopListening();
+    }
+  }
+
+  void _startSmsListener() {
+    // Start listening for new SMS messages
+    _smsService.startListening(context);
+
+    // Listen for new transactions
+    final transactionProvider =
+        Provider.of<TransactionProvider>(context, listen: false);
+    transactionProvider.addListener(_onTransactionsChanged);
+  }
+
+  void _onTransactionsChanged() {
+    final transactionProvider =
+        Provider.of<TransactionProvider>(context, listen: false);
+    final transactions = transactionProvider.transactions;
+
+    if (transactions.isEmpty) return;
+
+    // Sort by date (most recent first)
+    final sortedTransactions = List<Transaction>.from(transactions)
+      ..sort((a, b) => b.date.compareTo(a.date));
+
+    final latestTransaction = sortedTransactions.first;
+
+    // Check if this is a new transaction that we haven't notified about
+    if (_lastTransactionId != latestTransaction.id) {
+      _lastTransactionId = latestTransaction.id;
+
+      // Only show notification for very recent transactions (within last minute)
+      final now = DateTime.now();
+      final difference = now.difference(latestTransaction.date).inMinutes;
+
+      if (difference <= 1) {
+        _showTransactionNotification(latestTransaction);
+      }
+    }
+  }
+
+  void _showTransactionNotification(Transaction transaction) {
+    final currencyFormat = NumberFormat.currency(symbol: '₹', decimalDigits: 0);
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          'New ${transaction.type == TransactionType.income ? 'income' : 'expense'}: ${currencyFormat.format(transaction.amount)} - ${transaction.description}',
+        ),
+        action: SnackBarAction(
+          label: 'View',
+          onPressed: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) =>
+                    TransactionDetailScreen(transaction: transaction),
+              ),
+            );
+          },
+        ),
+        duration: const Duration(seconds: 5),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
   }
 
   List<PreferredSizeWidget> _buildAppBars() {
@@ -80,6 +164,9 @@ class _HomeScreenState extends State<HomeScreen> {
           .extractAccountsFromTransactions(transactionProvider.transactions);
     }
 
+    // Start listening for new SMS messages
+    _startSmsListener();
+
     setState(() {
       _isLoading = false;
     });
@@ -91,8 +178,7 @@ class _HomeScreenState extends State<HomeScreen> {
     });
 
     // Reload SMS messages
-    final smsService = SMSService();
-    await smsService.loadMessages(context);
+    await _smsService.loadMessages(context);
 
     setState(() {
       _isLoading = false;
@@ -358,7 +444,13 @@ class HomeContent extends StatelessWidget {
               return AccountCard(
                 account: accounts[index],
                 onTap: () {
-                  // Navigate to account details screen
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) =>
+                          AccountDetailScreen(account: accounts[index]),
+                    ),
+                  );
                 },
               );
             },
@@ -399,7 +491,17 @@ class HomeContent extends StatelessWidget {
                 ),
                 TextButton.icon(
                   onPressed: () {
-                    // Use bottom navigation to navigate
+                    // Navigate to transactions tab
+                    if (context.findAncestorStateOfType<_HomeScreenState>() !=
+                        null) {
+                      context
+                          .findAncestorStateOfType<_HomeScreenState>()!
+                          .setState(() {
+                        context
+                            .findAncestorStateOfType<_HomeScreenState>()!
+                            ._currentIndex = 2;
+                      });
+                    }
                   },
                   icon: const Icon(Icons.visibility_outlined, size: 16),
                   label: const Text('View All'),

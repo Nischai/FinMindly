@@ -24,6 +24,22 @@ class TransactionProvider with ChangeNotifier {
     notifyListeners();
   }
 
+  // Add a single transaction to the list
+  Future<void> addTransaction(Transaction transaction) async {
+    // Check if transaction with same ID already exists
+    final existingIndex =
+        _transactions.indexWhere((t) => t.id == transaction.id);
+
+    if (existingIndex >= 0) {
+      // Transaction already exists, don't add duplicate
+      return;
+    }
+
+    _transactions.add(transaction);
+    await _saveTransactions();
+    notifyListeners();
+  }
+
   // Add a tag to a transaction
   Future<void> addTagToTransaction(String transactionId, String tag) async {
     final index = _transactions.indexWhere((t) => t.id == transactionId);

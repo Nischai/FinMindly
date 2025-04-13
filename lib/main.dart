@@ -14,8 +14,7 @@ void main() {
       providers: [
         ChangeNotifierProvider(create: (_) => TransactionProvider()),
         ChangeNotifierProvider(create: (_) => AccountProvider()),
-        ChangeNotifierProvider(
-            create: (_) => ThemeProvider()), // Added theme provider
+        ChangeNotifierProvider(create: (_) => ThemeProvider()),
       ],
       child: const FinMindApp(),
     ),
@@ -133,6 +132,7 @@ class PermissionsScreen extends StatefulWidget {
 
 class _PermissionsScreenState extends State<PermissionsScreen> {
   bool _isLoading = false;
+  final SMSService _smsService = SMSService();
 
   @override
   void initState() {
@@ -158,10 +158,14 @@ class _PermissionsScreenState extends State<PermissionsScreen> {
       _isLoading = false;
     });
 
+    // In the PermissionsScreen class, inside _requestPermissions() method
     if (status.isGranted) {
       // Load SMS messages before navigating
       final smsService = SMSService();
       await smsService.loadMessages(context);
+
+      // Start listening for new SMS messages
+      await smsService.startListening(context);
 
       // Load accounts
       final transactionProvider =
@@ -191,7 +195,8 @@ class _PermissionsScreenState extends State<PermissionsScreen> {
 
   void _navigateToHome() {
     Navigator.of(context).pushReplacement(
-      MaterialPageRoute(builder: (context) => const HomeScreen()),
+      MaterialPageRoute(
+          builder: (context) => const HomeScreen(key: Key('home_screen'))),
     );
   }
 
