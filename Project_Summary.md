@@ -1,150 +1,149 @@
-# FinMind - Financial Transaction Tracker
+# FinMindly - Project Summary
 
-## Project Overview
+## Overview
+FinMindly is a mobile finance tracking application that automatically analyzes bank SMS messages to track and categorize transactions. The app provides users with insights into their spending habits, account balances, and financial activities through a modern, user-friendly interface built with Flutter and Material Design 3.
 
-FinMind is a Flutter mobile application that automatically tracks financial transactions by analyzing bank SMS messages. The app reads bank SMS notifications, extracts transaction details, and provides insightful financial statistics and visualizations to help users monitor their spending and income patterns.
+## Project Development Journey
+
+### Initial Implementation
+- Created the base application structure with SMS permission handling
+- Implemented SMS parsing logic to extract transaction details
+- Built transaction model and provider for state management
+- Created basic UI screens for home, transactions, and transaction details
+
+### Feature Expansion
+- Added transaction categorization based on keywords
+- Implemented tag management system for transactions
+- Created statistics visualization with charts
+- Added filtering and search capabilities for transactions
+
+### Design Evolution
+- Updated UI from basic Material Design to Material Design 3
+- Replaced line charts with bar charts for better visualization
+- Redesigned card layouts for better visual hierarchy
+- Implemented dark mode as the default theme
+
+### Account Management
+- Added account model to represent different financial accounts
+- Implemented account detection logic from transaction data
+- Created account cards with visual identifiers for different account types
+- Displayed account balances based on associated transactions
+
+### Navigation & Structure
+- Implemented bottom navigation with Home, Stats, Transactions, and Settings tabs
+- Created consistent app bar across all screens
+- Added proper navigation between screens
+- Ensured bottom navigation stays visible throughout the app
 
 ## Key Features
 
-1. **Automatic SMS Transaction Parsing**
-   - Requests SMS permissions when first launched
-   - Reads and analyzes bank transaction messages
-   - Extracts transaction amount, date, description, and type
-   - Supports multiple Indian bank message formats
+### Transaction Management
+- Automatic parsing of bank SMS messages to extract transaction details
+- Intelligent categorization of transactions (income/expense)
+- Ability to tag, search, and filter transactions
+- Detailed transaction view with editing capabilities
 
-2. **Smart Transaction Categorization**
-   - Automatically categorizes transactions into predefined categories
-   - Identifies transaction types (income/expense)
-   - Custom tagging system for personalized organization
+### Account Management
+- Automatic detection of accounts from transaction data
+- Support for multiple account types (bank accounts, credit cards, debit cards, investments, insurance)
+- Visual representation of accounts with balances in a horizontal scrollable list
+- Display of last 4 digits of card/account numbers for easy identification
 
-3. **Financial Dashboard**
-   - Summary cards showing income, expenses, and balance
-   - Daily financial activity charts comparing income vs. expenses
-   - Category-wise expense breakdown with pie chart visualization
-   - Recent transactions list with quick access to details
+### Financial Insights
+- Bar charts showing income vs. expenses over different time periods
+- Pie chart visualization of spending by category 
+- Summary cards showing total income, expenses, and balance
+- Time-based filtering (day, week, month, year)
 
-4. **Transaction Management**
-   - Complete transaction history with filtering options
-   - Search functionality across descriptions, categories, and tags
-   - Detailed transaction view with all information
-   - Custom tagging system for personalized organization
+### User Experience
+- Modern Material Design 3 UI implementation
+- Dark mode enabled by default with toggle in settings
+- Bottom navigation for easy access to home, stats, transactions, and settings
+- Clean, intuitive interface with consistent design patterns
 
-5. **Advanced Filtering System**
-   - Filter by transaction type (income/expense)
-   - Filter by time frame (today, this week, this month, etc.)
-   - Filter by custom tags
-   - Search by keywords across all transaction data
-
-6. **Tag Management System**
-   - Add custom tags to transactions for better organization
-   - View and remove tags from transactions
-   - Filter transactions by tags
-   - Tag suggestions based on existing tags
-   - Real-time UI updates when modifying tags
+### Settings & Customization
+- Theme toggle (light/dark mode)
+- Regional settings (currency, language)
+- Data management (export, clear data)
+- Notification preferences
 
 ## Technical Implementation
 
 ### Architecture
+- Provider pattern for state management
+- Clean separation of UI, business logic, and data layers
+- Modular design for easy maintainability and extensibility
 
-The application follows a structured architecture with clear separation of concerns:
+### Key Files
+- `lib/main.dart`: Application entry point and theme configuration
+- `lib/models/transaction.dart`: Transaction data model
+- `lib/models/account.dart`: Account data model
+- `lib/providers/transaction_provider.dart`: Transaction state management
+- `lib/providers/account_provider.dart`: Account state management
+- `lib/providers/theme_provider.dart`: Theme state management
+- `lib/services/sms_service.dart`: SMS parsing and transaction extraction
+- `lib/screens/home_screen.dart`: Main dashboard
+- `lib/screens/stats_screen.dart`: Financial statistics and charts
+- `lib/screens/transactions_screen.dart`: Transaction listing and filtering
+- `lib/screens/settings_screen.dart`: App settings
+- `lib/screens/transaction_detail_screen.dart`: Transaction details
+- `lib/widgets/account_card.dart`: Account UI component
+- `lib/widgets/tag_manager.dart`: Tag management UI component
 
-- **Models**: Define data structures for transactions and other entities
-- **Services**: Handle system interactions like SMS reading
-- **Providers**: Manage application state and data persistence
-- **Screens**: Handle user interface and interaction
-- **Widgets**: Reusable UI components
+### Key Libraries & Dependencies
+- Flutter for cross-platform UI development
+- Provider for state management
+- Shared Preferences for local storage
+- FL Chart for data visualization
+- Intl for localization and formatting
+- Permission Handler for SMS access permissions
 
-### Key Components
+## Feature Details
 
-1. **SMS Service**
-   - Reads SMS messages using the flutter_sms_inbox package
-   - Parses transaction details using regular expressions
-   - Categorizes transactions based on keywords
-   - Handles SMS permission requests
+### SMS Parsing Logic
+The app analyzes bank SMS messages to extract:
+- Transaction type (income/expense)
+- Amount
+- Date and time
+- Description/merchant
+- Bank or card information
+- Auto-categorization based on keywords
 
-2. **Transaction Provider**
-   - Manages transaction data using Provider pattern
-   - Provides methods for transaction filtering and statistics
-   - Handles data persistence using SharedPreferences
-   - Manages tags and tag-related operations
+### Account Detection
+The system identifies accounts based on:
+- Bank name mentions in transaction descriptions
+- Card numbers (last 4 digits)
+- Transaction patterns
+- Associated banking institutions
 
-3. **UI Components**
-   - Data visualization using fl_chart for line and pie charts
-   - Material Design components with custom styling
-   - Responsive layouts for different screen sizes
-   - Interactive filtering and search interface
+### Statistics and Insights
+The app provides visual insights through:
+- Daily/weekly/monthly expense tracking
+- Category-based spending analysis
+- Income vs expense comparisons
+- Balance tracking across accounts
 
-### Data Flow
+### UI/UX Implementation
+- Used Material Design 3 color system for consistent theming
+- Implemented proper elevation hierarchy for cards and surfaces
+- Used appropriate spacing and typography scale
+- Designed intuitive navigation patterns
+- Ensured visual consistency across all screens
 
-1. User grants SMS permission on first launch
-2. App reads SMS messages and extracts transaction data
-3. Transactions are stored locally using SharedPreferences
-4. UI components observe the TransactionProvider for changes
-5. When data changes (e.g., adding a tag), UI updates automatically
-
-## Project Structure
-
-```
-lib/
-├── main.dart            # App entry point with permission handling
-├── models/
-│   └── transaction.dart # Transaction data model
-├── providers/
-│   └── transaction_provider.dart # State management
-├── screens/
-│   ├── home_screen.dart # Dashboard with statistics
-│   ├── transaction_detail_screen.dart # Transaction details
-│   └── transactions_screen.dart # Transaction list and filtering
-├── services/
-│   └── sms_service.dart # SMS reading and parsing
-└── widgets/
-    └── tag_manager.dart # Tag management component
-```
-
-## Dependencies
-
-- **flutter_sms_inbox**: For reading SMS messages
-- **permission_handler**: For managing app permissions
-- **provider**: For state management
-- **fl_chart**: For data visualization
-- **shared_preferences**: For local data persistence
-- **intl**: For date and number formatting
-
-## Challenges and Solutions
-
-1. **SMS Format Variability**
-   - Challenge: Different banks use different SMS formats
-   - Solution: Implemented flexible parsing with multiple pattern matching
-
-2. **Permission Handling**
-   - Challenge: SMS permissions are critical but can be denied
-   - Solution: Clear permission request flow with explanations
-
-3. **Transaction Categorization**
-   - Challenge: Accurately categorizing diverse transactions
-   - Solution: Keyword-based categorization with fallback options
-
-4. **Real-time UI Updates**
-   - Challenge: Keeping UI in sync with data changes
-   - Solution: Implemented callbacks and state management with Provider
-
-5. **Tag Management**
-   - Challenge: Creating an intuitive tagging system
-   - Solution: Built suggestion system and real-time UI updates
+## Design Philosophy
+The application follows Material Design 3 guidelines with a focus on:
+- Clean, minimalist interfaces
+- Consistent visual hierarchy
+- Intuitive navigation
+- Proper spacing and typography
+- Accessible color schemes in both light and dark modes
 
 ## Future Enhancements
+- Additional visualization options for financial data
+- Budget tracking and goal setting
+- Cloud backup and synchronization
+- Export options for financial reports
+- Enhanced account management features
+- More detailed financial insights and trends analysis
 
-1. **Budget Setting**: Allow users to set budget limits for categories
-2. **Export Functionality**: Enable exporting data to CSV/PDF
-3. **Cloud Sync**: Add option to sync data across devices
-4. **More Visualization**: Add more chart types and insights
-5. **Custom Categories**: Allow users to create custom categories
-6. **Recurring Transaction Detection**: Identify and highlight regular payments
-7. **Notifications**: Send alerts for unusual spending patterns
-8. **Multiple Currency Support**: Handle transactions in different currencies
-
-## Conclusion
-
-FinMind provides a comprehensive solution for automated financial tracking by leveraging existing bank SMS notifications. This approach eliminates the need for manual transaction entry while providing powerful analysis tools to help users gain insights into their financial habits.
-
-The application demonstrates effective use of Flutter's capabilities for creating responsive UIs, managing application state, and handling device features like SMS access while maintaining good performance and user experience.
+FinMindly aims to simplify personal finance tracking by automating the tedious process of recording transactions while providing meaningful insights into spending patterns and financial health.

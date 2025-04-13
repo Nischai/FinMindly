@@ -3,6 +3,7 @@ import 'package:flutter_sms_inbox/flutter_sms_inbox.dart';
 import 'package:provider/provider.dart';
 import '../models/transaction.dart';
 import '../providers/transaction_provider.dart';
+import '../providers/account_provider.dart';
 
 class SMSService {
   final SmsQuery _query = SmsQuery();
@@ -26,6 +27,25 @@ class SMSService {
     'BOBACC',
   ];
 
+  // Map bank sender IDs to bank names
+  final Map<String, String> _bankNameMap = {
+    'HDFCBK': 'HDFC Bank',
+    'SBIINB': 'SBI',
+    'ICICIB': 'ICICI Bank',
+    'AXISBK': 'Axis Bank',
+    'KOTAKB': 'Kotak Bank',
+    'PNBSMS': 'PNB',
+    'BOIIND': 'Bank of India',
+    'YESBK': 'Yes Bank',
+    'CANBNK': 'Canara Bank',
+    'CENTBK': 'Central Bank',
+    'INDBNK': 'Indian Bank',
+    'UCOBNK': 'UCO Bank',
+    'SYNBNK': 'Syndicate Bank',
+    'IDBI': 'IDBI Bank',
+    'BOBACC': 'Bank of Baroda',
+  };
+
   Future<void> loadMessages(BuildContext context) async {
     try {
       final messages = await _query.querySms(
@@ -41,8 +61,14 @@ class SMSService {
       final transactions = _parseTransactions(bankMessages);
 
       // Update the provider with the transactions
-      Provider.of<TransactionProvider>(context, listen: false)
-          .setTransactions(transactions);
+      final transactionProvider =
+          Provider.of<TransactionProvider>(context, listen: false);
+      await transactionProvider.setTransactions(transactions);
+
+      // Extract accounts from transactions
+      final accountProvider =
+          Provider.of<AccountProvider>(context, listen: false);
+      await accountProvider.extractAccountsFromTransactions(transactions);
     } catch (e) {
       debugPrint('Error loading SMS messages: $e');
     }
@@ -56,8 +82,26 @@ class SMSService {
 
       final String body = message.body!.toUpperCase();
       final DateTime date = message.date ?? DateTime.now();
+      final String? sender = message.sender;
 
-      // Extract transaction details based on message patterns
+      // Extract bank name from sender
+      String? bankName;
+      if (sender != null) {
+        for (final bankCode in _bankSenders) {
+          if (sender.contains(bankCode)) {
+            bankName = _bankNameMap[bankCode] ?? bankCode;
+            break;
+          }
+        }
+      }
+
+      // Extract card number if present
+      String? cardNumber;
+      final RegExp cardRegex = RegExp(r'[Xx*]+(\d{4})');
+      final cardMatch = cardRegex.firstMatch(body);
+      if (cardMatch != null && cardMatch.groupCount >= 1) {
+        cardNumber = cardMatch.group(1);
+      }
 
       // Pattern 1: Debited/Credited to account
       if (_containsAnyWord(
@@ -70,8 +114,9 @@ class SMSService {
               date: date,
               amount: amount,
               type: TransactionType.expense,
-              description: _extractDescription(body),
+              description: _extractDescription(body, bankName, cardNumber),
               category: _categorizeExpense(body),
+              tags: _extractTags(body, bankName, cardNumber),
             ),
           );
         }
@@ -85,8 +130,9 @@ class SMSService {
               date: date,
               amount: amount,
               type: TransactionType.income,
-              description: _extractDescription(body),
+              description: _extractDescription(body, bankName, cardNumber),
               category: _categorizeIncome(body),
+              tags: _extractTags(body, bankName, cardNumber),
             ),
           );
         }
@@ -114,7 +160,8 @@ class SMSService {
     return null;
   }
 
-  String _extractDescription(String text) {
+  String _extractDescription(
+      String text, String? bankName, String? cardNumber) {
     // Look for common description indicators
     final List<String> indicators = [
       'AT',
@@ -143,6 +190,27 @@ class SMSService {
     }
 
     return 'Transaction';
+  }
+
+  // Extract tags including bank name and card number
+  List<String> _extractTags(String text, String? bankName, String? cardNumber) {
+    List<String> tags = [];
+
+    if (bankName != null) {
+      tags.add(bankName);
+    }
+
+    if (cardNumber != null) {
+      if (text.contains('CREDIT CARD') || text.contains('CC')) {
+        tags.add('Credit Card ••••$cardNumber');
+      } else if (text.contains('DEBIT CARD') || text.contains('DC')) {
+        tags.add('Debit Card ••••$cardNumber');
+      } else {
+        tags.add('Card ••••$cardNumber');
+      }
+    }
+
+    return tags;
   }
 
   String _categorizeExpense(String text) {
